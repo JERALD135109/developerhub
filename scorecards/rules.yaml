@@ -1,0 +1,6 @@
+rules:
+  - {id: docs,     check: "docs/runbook.md exists"}
+  - {id: alerts,   check: "alert rules defined"}
+  - {id: tests,    check: "src/test has tests and CI passes"}
+  - {id: security, check: "policy checks pass"}
+  - {id: slo,      check: "SLO defined in catalog-info.yaml"}

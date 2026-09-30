@@ -1,0 +1,8 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata: {name: payment-service-dev, namespace: argocd}
+spec:
+  project: default
+  source: {repoURL: https://github.com/developerhub-org/payment-service, path: helm, targetRevision: main}
+  destination: {server: https://kubernetes.default.svc, namespace: payments-dev}
+  syncPolicy: {automated: {prune: true, selfHeal: true}, syncOptions: [CreateNamespace=true]}
