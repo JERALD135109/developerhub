@@ -8,7 +8,11 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Base64;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /** Creates a repo on the token owner's account and pushes rendered template files. Token comes only from env GITHUB_TOKEN. */
@@ -57,16 +61,46 @@ public class GitHubClient {
     }
   }
 
+  public String login() { return call("GET", "/user", null).path("login").asText(); }
+
+  public boolean repoExists(String owner, String name) {
+    try { call("GET", "/repos/" + owner + "/" + name, null); return true; }
+    catch (GitHubException e) { if (e.status == 404) return false; throw e; }
+  }
+
+  public JsonNode createRepo(String name, String description, boolean isPrivate) {
+    return call("POST", "/user/repos", Map.of("name", name, "description", description, "private", isPrivate));
+  }
+
+  /** Creates a new file (fails if it already exists). */
+  public void putFile(String owner, String repo, String path, String content, String message) {
+    String b64 = Base64.getEncoder().encodeToString(content.getBytes(StandardCharsets.UTF_8));
+    callWithRetry("PUT", "/repos/" + owner + "/" + repo + "/contents/" + path,
+        Map.of("message", message, "content", b64));
+  }
+
+  /** Creates or updates a file. */
+  public void upsertFile(String owner, String repo, String path, String content, String message) {
+    String b64 = Base64.getEncoder().encodeToString(content.getBytes(StandardCharsets.UTF_8));
+    Map<String, Object> body = new HashMap<>();
+    body.put("message", message);
+    body.put("content", b64);
+    try {
+      JsonNode existing = call("GET", "/repos/" + owner + "/" + repo + "/contents/" + path, null);
+      body.put("sha", existing.path("sha").asText());
+    } catch (GitHubException e) { if (e.status != 404) throw e; }
+    callWithRetry("PUT", "/repos/" + owner + "/" + repo + "/contents/" + path, body);
+  }
+
   /** @return html url of the new repository */
   public String createRepoAndPush(String name, String description, Map<String, String> files) {
-    JsonNode repo = call("POST", "/user/repos",
-        Map.of("name", name, "description", description, "private", true));
+    JsonNode repo = createRepo(name, description, true);
     String owner = repo.path("owner").path("login").asText();
-    for (Map.Entry<String, String> f : files.entrySet()) {
-      String b64 = Base64.getEncoder().encodeToString(f.getValue().getBytes(StandardCharsets.UTF_8));
-      callWithRetry("PUT", "/repos/" + owner + "/" + name + "/contents/" + f.getKey(),
-          Map.of("message", "Add " + f.getKey() + " (DeveloperHub golden path)", "content", b64));
-    }
+    // Push workflow files last so CI starts once, on the complete repo, not on every partial commit.
+    List<Map.Entry<String, String>> ordered = new ArrayList<>(files.entrySet());
+    ordered.sort(Comparator.comparing((Map.Entry<String, String> e) -> e.getKey().startsWith(".github/")));
+    for (Map.Entry<String, String> f : ordered)
+      putFile(owner, name, f.getKey(), f.getValue(), "Add " + f.getKey() + " (DeveloperHub golden path)");
     return repo.path("html_url").asText();
   }
 }

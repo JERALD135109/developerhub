@@ -17,17 +17,19 @@ public class ProvisionController {
       @Pattern(regexp = "Spring Boot") String framework,
       @Pattern(regexp = "PostgreSQL|None") String database,
       @Pattern(regexp = "dev|staging|prod") String environment,
-      @NotBlank String owner, boolean observability, String requestedBy) {}
+      @Pattern(regexp = "^[a-z][a-z0-9-]{1,30}$") String owner, boolean observability, String requestedBy) {}
   public record Result(String id, String status, List<String> steps, String repoUrl, String dashboardUrl) {}
   public record AuditEvent(String actor, String action, String resource, String result, Instant timestamp) {}
 
   private final List<AuditEvent> audit = Collections.synchronizedList(new ArrayList<>());
   private final TemplateRenderer renderer;
   private final GitHubClient github;
+  private final GitOpsWriter gitops;
 
-  public ProvisionController(TemplateRenderer renderer, GitHubClient github) {
+  public ProvisionController(TemplateRenderer renderer, GitHubClient github, GitOpsWriter gitops) {
     this.renderer = renderer;
     this.github = github;
+    this.gitops = gitops;
   }
 
   @PostMapping("/provision")
@@ -47,9 +49,10 @@ public class ProvisionController {
       steps.add("2 repository created from controlled template: " + files.size() + " files pushed");
       steps.add("3 service metadata + CI workflow committed (part of template push)");
       if ("PostgreSQL".equals(r.database())) steps.add("4 terraform request: NOT IMPLEMENTED YET (phase 6)");
-      steps.add("5 gitops values: NOT IMPLEMENTED YET (phase 5)");
+      String gitopsUrl = gitops.write(r.name(), r.owner(), r.environment());
+      steps.add("5 gitops values + argo cd application written: " + gitopsUrl);
       steps.add("6 catalog registration: NOT IMPLEMENTED YET (phase 1)");
-      steps.add("7 argo cd deploy: NOT IMPLEMENTED YET (phase 5)");
+      steps.add("7 argo cd deploy: Argo CD syncs the gitops repo (up to ~3 min, or press Refresh)");
       steps.add("8 dashboard + runbook links: NOT IMPLEMENTED YET (phase 7)");
       audit(r, "REPO_CREATED");
       return new Result(UUID.randomUUID().toString(), "IN_PROGRESS", steps, repoUrl, null);

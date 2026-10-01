@@ -1,18 +1,45 @@
 apiVersion: apps/v1
 kind: Deployment
-metadata: {name: {{ .Chart.Name }}}
+metadata:
+  name: {{ .Chart.Name }}
+  labels:
+    app: {{ .Chart.Name }}
 spec:
   replicas: {{ .Values.replicas }}
-  selector: {matchLabels: {app: {{ .Chart.Name }}}}
+  selector:
+    matchLabels:
+      app: {{ .Chart.Name }}
   template:
-    metadata: {labels: {app: {{ .Chart.Name }}}}
+    metadata:
+      labels:
+        app: {{ .Chart.Name }}
     spec:
-      securityContext: {runAsNonRoot: true, runAsUser: 10001}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
       containers:
         - name: app
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
-          ports: [{containerPort: 8080}]
-          resources: {{- toYaml .Values.resources | nindent 12 }}
-          securityContext: {privileged: false, allowPrivilegeEscalation: false}
-          livenessProbe: {httpGet: {path: /actuator/health/liveness, port: 8080}}
-          readinessProbe: {httpGet: {path: /actuator/health/readiness, port: 8080}}
+          ports:
+            - containerPort: 8080
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          securityContext:
+            privileged: false
+            allowPrivilegeEscalation: false
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: 8080
+            initialDelaySeconds: 15
+            periodSeconds: 5
