@@ -20,10 +20,10 @@ public class ProvisionController {
   @GetMapping("/requests") public List<Provision> requests() { return store.all(); }
   @GetMapping("/requests/{id}") public Provision request(@PathVariable String id) { return store.get(id); }
   @PostMapping("/requests/{id}/refresh") public Provision refresh(@PathVariable String id) { return workflow.refresh(id); }
-  @PostMapping("/requests/{id}/approve") public Provision approve(@PathVariable String id, @RequestHeader("X-Admin-Token") String token) { return workflow.approve(id, token); }
-  @PostMapping("/requests/{id}/cleanup") public Provision cleanup(@PathVariable String id, @RequestHeader("X-Admin-Token") String token) { return workflow.cleanup(id, token); }
-  @PostMapping("/requests/{id}/promote") public Provision promote(@PathVariable String id, @RequestHeader("X-Admin-Token") String token) { return workflow.promote(id, token); }
-  @PostMapping("/requests/{id}/retry") public Provision retry(@PathVariable String id, @RequestHeader("X-Admin-Token") String token) { return workflow.retry(id, token); }
+  @PostMapping("/requests/{id}/approve") public Provision approve(@PathVariable String id, @RequestHeader(value="X-Admin-Token", required=false) String token) { return workflow.approve(id, token); }
+  @PostMapping("/requests/{id}/cleanup") public Provision cleanup(@PathVariable String id, @RequestHeader(value="X-Admin-Token", required=false) String token) { return workflow.cleanup(id, token); }
+  @PostMapping("/requests/{id}/promote") public Provision promote(@PathVariable String id, @RequestHeader(value="X-Admin-Token", required=false) String token) { return workflow.promote(id, token); }
+  @PostMapping("/requests/{id}/retry") public Provision retry(@PathVariable String id, @RequestHeader(value="X-Admin-Token", required=false) String token) { return workflow.retry(id, token); }
   @GetMapping("/services") public List<Provision> services() { return store.all().stream().filter(p -> p.repoUrl() != null).toList(); }
   @GetMapping("/services/{id}/scorecard") public List<Score> scorecard(@PathVariable String id) { return workflow.scorecard(id); }
   @GetMapping("/audit") public List<AuditEvent> audit() { return store.audit(); }

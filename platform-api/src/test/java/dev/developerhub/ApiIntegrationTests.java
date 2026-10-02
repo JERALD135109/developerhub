@@ -28,4 +28,8 @@ class ApiIntegrationTests {
     http.perform(post("/api/requests/integration-production/approve").header("X-Platform-Token","integration-token").header("X-Admin-Token","wrong"))
         .andExpect(status().isForbidden());
   }
+  @Test void missingAdminTokenIsForbidden() throws Exception {
+    http.perform(post("/api/requests/integration-production/approve").header("X-Platform-Token","integration-token"))
+        .andExpect(status().isForbidden());
+  }
 }

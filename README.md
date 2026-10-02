@@ -15,7 +15,7 @@ To demonstrate the service template without creating cloud resources or GitHub r
 mvn -B -f generated/example-api/pom.xml verify
 ```
 
-The API listens on port 8080. With a valid GitHub token and repository access configured, provisioning requests create real GitHub repositories and can trigger connected workflows. Keep tokens out of source control. Production approval and administrative operations use the separate `PLATFORM_ADMIN_TOKEN`; remote API clients also require `PLATFORM_API_TOKEN`.
+The API listens on port 8080. Set `GITHUB_TOKEN` in the local process environment to enable Backstage GitHub publishing. With repository access configured, service provisioning can create real GitHub repositories and trigger connected workflows. Keep tokens out of source control. Production approval and administrative operations use the separate `PLATFORM_ADMIN_TOKEN`; remote API clients also require `PLATFORM_API_TOKEN`.
 
 ## What the project demonstrates
 
