@@ -1,0 +1,23 @@
+services:
+  platform-api:
+    build: ./platform-api
+    ports:
+      - "127.0.0.1:8080:8080"
+    environment:
+      TEMPLATE_DIR: /templates/java-spring-service
+      DEVELOPERHUB_STATE_FILE: /app/data/state.json
+      GITHUB_TOKEN: ${GITHUB_TOKEN:?Set GITHUB_TOKEN in your local environment}
+      PLATFORM_API_TOKEN: ${PLATFORM_API_TOKEN:?Set PLATFORM_API_TOKEN}
+      PLATFORM_ADMIN_TOKEN: ${PLATFORM_ADMIN_TOKEN:?Set PLATFORM_ADMIN_TOKEN}
+      BACKSTAGE_BACKEND_URL: http://host.docker.internal:7007
+      BACKSTAGE_CATALOG_TOKEN: ${BACKSTAGE_CATALOG_TOKEN:-}
+      ARGOCD_URL: ${ARGOCD_URL:-http://host.docker.internal:8090}
+      ARGOCD_TOKEN: ${ARGOCD_TOKEN:-}
+      GRAFANA_URL: ${GRAFANA_URL:-http://localhost:3001}
+      SERVICE_DOMAIN: ${SERVICE_DOMAIN:-apps.localhost}
+      TERRAFORM_ENABLED: ${TERRAFORM_ENABLED:-false}
+    volumes:
+      - ./templates:/templates:ro
+      - platform-data:/app/data
+volumes:
+  platform-data:

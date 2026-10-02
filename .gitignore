@@ -1,3 +1,9 @@
-target/
+.env
+*.local.yaml
+**/target/
+**/data/
 generated/
-*.class
+**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan

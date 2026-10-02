@@ -1,0 +1,7 @@
+site_name: ${{values.name}}
+nav:
+  - Overview: index.md
+  - Runbook: runbook.md
+  - Architecture: adr/0001-golden-path.md
+plugins:
+  - techdocs-core

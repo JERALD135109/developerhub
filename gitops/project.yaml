@@ -1,0 +1,37 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: developerhub
+  namespace: argocd
+spec:
+  description: DeveloperHub approved golden paths
+  sourceRepos:
+    - https://github.com/REPLACE_GITHUB_OWNER/*
+  destinations:
+    - server: https://kubernetes.default.svc
+      namespace: '*-dev'
+    - server: https://kubernetes.default.svc
+      namespace: '*-staging'
+    - server: https://kubernetes.default.svc
+      namespace: '*-prod'
+    - server: https://kubernetes.default.svc
+      namespace: '*-pr-*'
+  clusterResourceWhitelist:
+    - group: ''
+      kind: Namespace
+  namespaceResourceWhitelist:
+    - group: apps
+      kind: Deployment
+    - group: ''
+      kind: Service
+    - group: ''
+      kind: ConfigMap
+    - group: ''
+      kind: Secret
+    - group: networking.k8s.io
+      kind: Ingress
+    - group: external-secrets.io
+      kind: ExternalSecret
+    - group: monitoring.coreos.com
+      kind: PrometheusRule
+

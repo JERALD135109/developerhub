@@ -1,0 +1,113 @@
+name: preview
+run-name: Preview PR ${{ inputs.pr }} - ${{ inputs.operation }}
+on:
+  workflow_dispatch:
+    inputs:
+      pr:
+        required: true
+        type: string
+      operation:
+        type: choice
+        required: true
+        options: [deploy, remove]
+permissions:
+  contents: read
+  packages: write
+concurrency:
+  group: preview-${{ inputs.pr }}
+  cancel-in-progress: false
+jobs:
+  resolve:
+    runs-on: ubuntu-latest
+    outputs:
+      sha: ${{ steps.pr.outputs.sha }}
+    steps:
+      - id: pr
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ inputs.pr }}
+          REPO: ${{ github.repository }}
+        run: |
+          [[ "$PR" =~ ^[1-9][0-9]{0,5}$ ]]
+          gh api "repos/$REPO/pulls/$PR" > pr.json
+          test "$(jq -r '.head.repo.full_name' pr.json)" = "$REPO"
+          echo "sha=$(jq -r '.head.sha' pr.json)" >> "$GITHUB_OUTPUT"
+  image:
+    if: inputs.operation == 'deploy'
+    needs: resolve
+    runs-on: ubuntu-latest
+    environment: preview
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.resolve.outputs.sha }}
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+          cache: maven
+      - run: mvn -B verify
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: image
+        run: echo "name=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.image.outputs.name }}:${{ needs.resolve.outputs.sha }}
+  gitops:
+    if: always() && needs.resolve.result == 'success' && (needs.image.result == 'success' || inputs.operation == 'remove')
+    needs: [resolve, image]
+    runs-on: ubuntu-latest
+    environment: preview
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/hub-gitops
+          token: ${{ secrets.GITOPS_TOKEN }}
+          path: gitops
+      - name: Update approved preview application
+        env:
+          PR: ${{ inputs.pr }}
+          OPERATION: ${{ inputs.operation }}
+          SHA: ${{ needs.resolve.outputs.sha }}
+          REPO: ${{ github.repository }}
+          DOMAIN: ${{ vars.SERVICE_DOMAIN }}
+          GIT_AUTHOR_NAME: DeveloperHub
+          GIT_AUTHOR_EMAIL: developerhub@users.noreply.github.com
+          GIT_COMMITTER_NAME: DeveloperHub
+          GIT_COMMITTER_EMAIL: developerhub@users.noreply.github.com
+        run: |
+          pip install PyYAML==6.0.2
+          python - <<'PY'
+          import os,yaml
+          from pathlib import Path
+          pr=os.environ['PR']; repo=os.environ['REPO']; name=repo.split('/')[1]
+          assert pr.isdigit() and 0<int(pr)<1000000
+          base=Path('gitops/apps/dev')/(name+'.yaml')
+          target=Path('gitops/apps/dev')/(name+'-pr-'+pr+'.yaml')
+          if os.environ['OPERATION']=='remove':
+              target.unlink(missing_ok=True)
+          else:
+              app=yaml.safe_load(base.read_text())
+              app['metadata']['name']=name+'-pr-'+pr
+              app['spec']['destination']['namespace']=name+'-pr-'+pr
+              app['spec']['source']['targetRevision']=os.environ['SHA']
+              values=app['spec']['source']['helm']['valuesObject']
+              values['image']['tag']=os.environ['SHA']
+              values['database']['enabled']=False
+              values['ingress']['host']=name+'-pr-'+pr+'.'+os.environ['DOMAIN']
+              app['spec']['syncPolicy']['automated']={'prune':True,'selfHeal':True}
+              target.write_text(yaml.safe_dump(app,sort_keys=False))
+          PY
+          cd gitops
+          git add apps/dev
+          git diff --cached --quiet && exit 0
+          git commit -m "Approved preview PR $PR: $OPERATION"
+          git pull --rebase
+          git push

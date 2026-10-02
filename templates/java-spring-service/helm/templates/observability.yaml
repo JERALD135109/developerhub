@@ -1,0 +1,22 @@
+{{- if .Values.observability.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Chart.Name }}-dashboard
+  labels:
+    grafana_dashboard: "1"
+data:
+  dashboard.json: |
+    {{- .Files.Get "observability/dashboard.json" | nindent 4 }}
+{{- if .Capabilities.APIVersions.Has "monitoring.coreos.com/v1" }}
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ .Chart.Name }}-alerts
+  labels:
+    developerhub: "true"
+spec:
+  {{- .Files.Get "observability/alerts.yaml" | nindent 2 }}
+{{- end }}
+{{- end }}

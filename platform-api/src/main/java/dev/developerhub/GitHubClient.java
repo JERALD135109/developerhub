@@ -24,7 +24,7 @@ public class GitHubClient {
   }
 
   private static final String API = "https://api.github.com";
-  private final HttpClient http = HttpClient.newHttpClient();
+  private final HttpClient http = HttpClient.newBuilder().connectTimeout(java.time.Duration.ofSeconds(15)).build();
   private final ObjectMapper json = new ObjectMapper();
 
   private String token() {
@@ -33,10 +33,10 @@ public class GitHubClient {
     return t;
   }
 
-  private JsonNode call(String method, String path, Object body) {
+  public JsonNode call(String method, String path, Object body) {
     try {
       HttpRequest.Builder b = HttpRequest.newBuilder(URI.create(API + path))
-          .header("Authorization", "Bearer " + token())
+          .timeout(java.time.Duration.ofSeconds(30)).header("Authorization", "Bearer " + token())
           .header("Accept", "application/vnd.github+json")
           .header("X-GitHub-Api-Version", "2022-11-28");
       if (body == null) b.method(method, HttpRequest.BodyPublishers.noBody());
@@ -69,7 +69,7 @@ public class GitHubClient {
   }
 
   public JsonNode createRepo(String name, String description, boolean isPrivate) {
-    return call("POST", "/user/repos", Map.of("name", name, "description", description, "private", isPrivate));
+    return call("POST", "/user/repos", Map.of("name", name, "description", description, "private", isPrivate, "auto_init", true));
   }
 
   /** Creates a new file (fails if it already exists). */
@@ -96,11 +96,18 @@ public class GitHubClient {
   public String createRepoAndPush(String name, String description, Map<String, String> files) {
     JsonNode repo = createRepo(name, description, true);
     String owner = repo.path("owner").path("login").asText();
-    // Push workflow files last so CI starts once, on the complete repo, not on every partial commit.
-    List<Map.Entry<String, String>> ordered = new ArrayList<>(files.entrySet());
-    ordered.sort(Comparator.comparing((Map.Entry<String, String> e) -> e.getKey().startsWith(".github/")));
-    for (Map.Entry<String, String> f : ordered)
-      putFile(owner, name, f.getKey(), f.getValue(), "Add " + f.getKey() + " (DeveloperHub golden path)");
+    String branch = repo.path("default_branch").asText("main");
+    String base = call("GET", "/repos/" + owner + "/" + name + "/git/ref/heads/" + branch, null).path("object").path("sha").asText();
+    List<Map<String,Object>> tree = files.entrySet().stream().map(f -> Map.<String,Object>of("path", f.getKey(), "mode", "100644", "type", "blob", "content", f.getValue())).toList();
+    String treeSha = call("POST", "/repos/" + owner + "/" + name + "/git/trees", Map.of("tree", tree)).path("sha").asText();
+    String commit = call("POST", "/repos/" + owner + "/" + name + "/git/commits", Map.of("message", "DeveloperHub golden path", "tree", treeSha, "parents", List.of(base))).path("sha").asText();
+    if (branch.equals("main")) call("PATCH", "/repos/" + owner + "/" + name + "/git/refs/heads/main", Map.of("sha", commit));
+    else {
+      call("POST", "/repos/" + owner + "/" + name + "/git/refs", Map.of("ref", "refs/heads/main", "sha", commit));
+      call("PATCH", "/repos/" + owner + "/" + name, Map.of("default_branch", "main"));
+    }
     return repo.path("html_url").asText();
   }
 }
+
+

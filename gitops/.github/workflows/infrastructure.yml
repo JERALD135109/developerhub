@@ -1,0 +1,93 @@
+name: infrastructure
+run-name: PostgreSQL ${{ inputs.service }} ${{ inputs.environment }} ${{ inputs.operation }}
+on:
+  workflow_dispatch:
+    inputs:
+      service:
+        required: true
+        type: string
+      environment:
+        required: true
+        type: choice
+        options: [dev, staging, prod]
+      operation:
+        required: true
+        type: choice
+        options: [apply, destroy]
+permissions:
+  contents: write
+  id-token: write
+concurrency:
+  group: infra-${{ inputs.environment }}-${{ inputs.service }}
+  cancel-in-progress: false
+jobs:
+  terraform:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    env:
+      SERVICE: ${{ inputs.service }}
+      ENVIRONMENT: ${{ inputs.environment }}
+      OPERATION: ${{ inputs.operation }}
+      TF_VAR_region: ${{ vars.AWS_REGION }}
+      TF_VAR_subnet_ids: ${{ vars.DB_SUBNET_IDS }}
+      TF_VAR_security_group_ids: ${{ vars.DB_SECURITY_GROUP_IDS }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate request and guard cleanup
+        run: |
+          [[ "$SERVICE" =~ ^[a-z][a-z0-9-]{2,40}$ ]]
+          [[ "$OPERATION" != destroy || "$ENVIRONMENT" == dev ]]
+          test -f "infrastructure/$ENVIRONMENT/$SERVICE.json"
+          echo "TF_VAR_service_name=$SERVICE" >> "$GITHUB_ENV"
+          echo "TF_VAR_environment=$ENVIRONMENT" >> "$GITHUB_ENV"
+          echo "TF_VAR_owner=$(jq -r .owner "infrastructure/$ENVIRONMENT/$SERVICE.json")" >> "$GITHUB_ENV"
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.TERRAFORM_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.10.5
+          terraform_wrapper: false
+      - name: Initialize remote state
+        working-directory: terraform-modules/environments
+        env:
+          STATE_BUCKET: ${{ vars.TF_STATE_BUCKET }}
+          REGION: ${{ vars.AWS_REGION }}
+        run: terraform init -backend-config="bucket=$STATE_BUCKET" -backend-config="key=developerhub/$ENVIRONMENT/$SERVICE.tfstate" -backend-config="region=$REGION" -backend-config="encrypt=true" -backend-config="use_lockfile=true"
+      - name: Plan
+        working-directory: terraform-modules/environments
+        run: |
+          if [[ "$OPERATION" == destroy ]]; then
+            terraform plan -destroy -out=plan
+          else
+            terraform plan -out=plan
+          fi
+      - name: Apply approved plan
+        working-directory: terraform-modules/environments
+        run: terraform apply -auto-approve plan
+      - name: Update secret references and connection metadata
+        if: inputs.operation == 'apply'
+        env:
+          GIT_AUTHOR_NAME: DeveloperHub
+          GIT_AUTHOR_EMAIL: developerhub@users.noreply.github.com
+          GIT_COMMITTER_NAME: DeveloperHub
+          GIT_COMMITTER_EMAIL: developerhub@users.noreply.github.com
+        run: |
+          pip install PyYAML==6.0.2
+          terraform -chdir=terraform-modules/environments output -json > outputs.json
+          python - <<'PY'
+          import os,json,yaml
+          from pathlib import Path
+          output=json.load(open('outputs.json'))
+          path=Path('apps')/os.environ['ENVIRONMENT']/(os.environ['SERVICE']+'.yaml')
+          app=yaml.safe_load(path.read_text())
+          database=app['spec']['source']['helm']['valuesObject']['database']
+          database.update(remoteKey=output['secret_arn']['value'],host=output['host']['value'],port=output['port']['value'],name=output['database']['value'])
+          path.write_text(yaml.safe_dump(app,sort_keys=False))
+          PY
+          git add "apps/$ENVIRONMENT/$SERVICE.yaml"
+          git commit -m "Wire managed PostgreSQL secret reference for $SERVICE" || exit 0
+          git pull --rebase
+          git push
+

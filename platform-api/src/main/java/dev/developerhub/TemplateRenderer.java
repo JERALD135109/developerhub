@@ -18,7 +18,7 @@ public class TemplateRenderer {
   @Value("${developerhub.template-dir:../templates/java-spring-service}")
   private String templateDir;
 
-  public Map<String, String> render(String name, String owner) {
+  public Map<String, String> render(String name, String owner, String environment, String database, boolean observability) {
     Path root = Path.of(templateDir).toAbsolutePath().normalize();
     if (!Files.isDirectory(root)) throw new IllegalStateException("Template not found: " + root);
     Map<String, String> out = new TreeMap<>();
@@ -29,10 +29,11 @@ public class TemplateRenderer {
         if (rel.startsWith("target/")) continue;
         String c = Files.readString(p, StandardCharsets.UTF_8)
             .replace("${{values.name}}", name)
-            .replace("${{values.owner}}", owner);
+            .replace("${{values.owner}}", owner).replace("${{values.environment}}", environment).replace("${{values.database}}", database).replace("${{values.observability}}", Boolean.toString(observability));
         out.put(rel, c);
       }
     } catch (IOException e) { throw new UncheckedIOException(e); }
     return out;
   }
 }
+

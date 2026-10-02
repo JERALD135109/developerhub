@@ -1,0 +1,19 @@
+groups:
+  - name: ${{values.name}}
+    rules:
+      - alert: ServiceUnavailable
+        expr: up{application="${{values.name}}"} == 0
+        for: 5m
+        labels:
+          severity: critical
+          owner: ${{values.owner}}
+        annotations:
+          summary: Service is unavailable
+      - alert: HighServerErrorRate
+        expr: sum(rate(http_server_requests_seconds_count{application="${{values.name}}",status=~"5.."}[5m])) / clamp_min(sum(rate(http_server_requests_seconds_count{application="${{values.name}}"}[5m])), 0.001) > 0.01
+        for: 10m
+        labels:
+          severity: warning
+          owner: ${{values.owner}}
+        annotations:
+          summary: Server error rate exceeds one percent

@@ -1,0 +1,24 @@
+server:
+  port: 8080
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
+developerhub:
+  state-file: ${DEVELOPERHUB_STATE_FILE:./data/state.json}
+  template-dir: ${TEMPLATE_DIR:../templates/java-spring-service}
+  gitops-repo: ${GITOPS_REPO:hub-gitops}
+  public-domain: ${SERVICE_DOMAIN:apps.localhost}
+  argo-url: ${ARGOCD_URL:http://localhost:8090}
+  grafana-url: ${GRAFANA_URL:http://localhost:3001}
+  catalog-url: ${BACKSTAGE_URL:http://localhost:3000}
+  backend-url: ${BACKSTAGE_BACKEND_URL:http://localhost:7007}
+  catalog-token: ${BACKSTAGE_CATALOG_TOKEN:}
+  admin-token: ${PLATFORM_ADMIN_TOKEN:}
+  api-token: ${PLATFORM_API_TOKEN:}
+  terraform-enabled: ${TERRAFORM_ENABLED:false}

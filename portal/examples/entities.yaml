@@ -1,0 +1,30 @@
+apiVersion: backstage.io/v1alpha1
+kind: System
+metadata:
+  name: developerhub
+  description: DeveloperHub internal developer platform
+spec:
+  owner: platform
+---
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: developerhub-portal
+  description: Self-service developer portal and service catalog
+spec:
+  type: website
+  lifecycle: experimental
+  owner: platform
+  system: developerhub
+---
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: developerhub-platform-api
+  description: Provisioning, approvals, deployment reconciliation and audit
+spec:
+  type: service
+  lifecycle: experimental
+  owner: platform
+  system: developerhub
+  dependencyOf: [component:developerhub-portal]

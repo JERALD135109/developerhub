@@ -1,0 +1,10 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: developerhub-portal
+  description: DeveloperHub self-service portal
+spec:
+  type: website
+  owner: platform
+  lifecycle: experimental
+  system: developerhub

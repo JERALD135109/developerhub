@@ -1,5 +1,7 @@
 FROM eclipse-temurin:17-jre
-RUN useradd -u 10001 app
+RUN useradd --system --uid 10001 app
+WORKDIR /app
+COPY target/*.jar /app/app.jar
 USER 10001
-COPY target/*.jar /app.jar
-ENTRYPOINT ["java","-jar","/app.jar"]
+EXPOSE 8080
+ENTRYPOINT ["java","-XX:MaxRAMPercentage=75","-jar","/app/app.jar"]

@@ -1,6 +1,6 @@
 image:
-  repository: ghcr.io/company/${{values.name}}
-  tag: latest
+  repository: ghcr.io/${{values.repoOwner}}/${{values.name}}
+  tag: pending
 replicas: 1
 resources:
   requests:
@@ -10,6 +10,26 @@ resources:
     cpu: 500m
     memory: 512Mi
 imagePullSecrets: []
-secretRef:
-  name: ${{values.name}}-db
-  vaultPath: secret/${{values.name}}
+ingress:
+  enabled: false
+  className: nginx
+  host: ${{values.name}}-${{values.environment}}.${{values.domain}}
+  tlsSecret: ""
+database:
+  enabled: false
+  secretName: ${{values.name}}-db
+  externalSecret: true
+  host: pending
+  port: 5432
+  name: service
+  storeName: developerhub-aws
+  remoteKey: ${{values.name}}/${{values.environment}}/db
+observability:
+  enabled: ${{values.observability}}
+  otlpEndpoint: http://otel-collector.observability:4318/v1/traces
+
+
+registrySecret:
+  enabled: false
+  storeName: developerhub-aws
+  remoteKey: developerhub/ghcr

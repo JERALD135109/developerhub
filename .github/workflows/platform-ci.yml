@@ -1,0 +1,50 @@
+name: platform-ci
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  api:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+          cache: maven
+      - run: mvn -B -f platform-api/pom.xml verify
+      - name: Render and verify golden path
+        shell: pwsh
+        run: |
+          ./scripts/generate.ps1 -Name validation-service -Owner platform
+          mvn -B -f generated/validation-service/pom.xml verify
+      - uses: azure/setup-helm@v4.3.0
+        with:
+          version: v3.17.3
+      - run: helm lint generated/validation-service/helm
+  portal:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: portal
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: corepack enable
+      - run: yarn install --immutable
+      - run: yarn tsc
+      - run: yarn lint:all
+      - run: yarn test --watch=false --runInBand
+      - run: yarn build:all
+  terraform:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.10.5
+      - run: terraform fmt -check -recursive terraform-modules
+      - run: terraform -chdir=terraform-modules/environments init -backend=false
+      - run: terraform -chdir=terraform-modules/environments validate

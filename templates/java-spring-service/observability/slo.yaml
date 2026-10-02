@@ -1,0 +1,5 @@
+service: ${{values.name}}
+owner: ${{values.owner}}
+objective: 0.999
+window: 30d
+indicator: successful HTTP requests / total HTTP requests
